@@ -26,6 +26,12 @@ services:
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
+      - ENHANCED_AI_SERVICE_URL=${ENHANCED_AI_SERVICE_URL}
+      - USE_ENHANCED_AI=${USE_ENHANCED_AI}
+      - FALLBACK_TO_LOCAL_AI=${FALLBACK_TO_LOCAL_AI}
+      - LOCAL_AI_TIMEOUT=${LOCAL_AI_TIMEOUT}
+      - WSL_HOST=${WSL_HOST}
+      - REMOTE_CLIENT_HOST=${REMOTE_CLIENT_HOST}
     depends_on:
       - postgres
     networks:
@@ -37,6 +43,7 @@ services:
     container_name: clipboard_tts
     environment:
       - GOOGLE_TTS_KEY=${GOOGLE_TTS_KEY}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/config/google-service-account.json
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=${DB_NAME}
@@ -44,6 +51,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
     volumes:
       - ./web-app/public/mp3:/app/public/mp3
+      - ./gen-lang-client-0899352753-bf1b34113193.json:/app/config/google-service-account.json:ro
     depends_on:
       - postgres
     networks:
@@ -60,6 +68,12 @@ services:
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - PORT=3000
+      - ENHANCED_AI_SERVICE_URL=${ENHANCED_AI_SERVICE_URL}
+      - USE_ENHANCED_AI=${USE_ENHANCED_AI}
+      - FALLBACK_TO_LOCAL_AI=${FALLBACK_TO_LOCAL_AI}
+      - WSL_HOST=${WSL_HOST}
+      - REMOTE_CLIENT_HOST=${REMOTE_CLIENT_HOST}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     expose:
       - "3000"
     volumes:

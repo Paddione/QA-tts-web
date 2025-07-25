@@ -25,7 +25,10 @@ class TTSService {
 
         // Initialize TTS client
         try {
-            this.tts = new TTSClient(process.env.GOOGLE_TTS_KEY);
+            this.tts = new TTSClient(
+                process.env.GOOGLE_TTS_KEY, 
+                process.env.GOOGLE_APPLICATION_CREDENTIALS
+            );
             console.log('🎵 TTS client initialized');
         } catch (error) {
             console.error('❌ Failed to initialize TTS client:', error.message);

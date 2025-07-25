@@ -11,8 +11,9 @@ RUN npm install --omit=dev
 # Copy source code
 COPY src/ ./src/
 
-# Create directory for MP3 files
+# Create directory for MP3 files and config
 RUN mkdir -p /app/public/mp3
+RUN mkdir -p /app/config
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \

@@ -96,6 +96,40 @@ class WebServer {
 
         // API Routes
         
+        // AI service status endpoint
+        this.app.get('/api/ai-status', async (req, res) => {
+            try {
+                // This would need to connect to the AI service to get real status
+                // For now, return a placeholder that can be extended
+                const status = {
+                    timestamp: new Date().toISOString(),
+                    services: {
+                        enhanced: {
+                            enabled: process.env.USE_ENHANCED_AI === 'true',
+                            url: process.env.ENHANCED_AI_SERVICE_URL || 'http://10.1.0.26:3001',
+                            healthy: false // This would be checked via actual health check
+                        },
+                        gemini: {
+                            available: !!process.env.GEMINI_API_KEY,
+                            fallback: process.env.FALLBACK_TO_LOCAL_AI === 'true'
+                        }
+                    },
+                    network: {
+                        wsl_host: process.env.WSL_HOST || '10.1.0.26',
+                        remote_client: process.env.REMOTE_CLIENT_HOST || '10.0.0.44'
+                    }
+                };
+                
+                res.json({ success: true, data: status });
+            } catch (error) {
+                console.error('❌ Error getting AI status:', error);
+                res.status(500).json({ 
+                    success: false, 
+                    error: 'Failed to get AI service status' 
+                });
+            }
+        });
+        
         // Get all record IDs
         this.app.get('/api/records', async (req, res) => {
             try {

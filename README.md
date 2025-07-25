@@ -72,17 +72,39 @@ A distributed application that captures clipboard content, processes it through 
    GEM_ID=gemini-pro
    GOOGLE_TTS_KEY=your_google_tts_key_here
    
+   # Enhanced AI Configuration (Optional)
+   USE_ENHANCED_AI=true
+   ENHANCED_AI_SERVICE_URL=http://10.1.0.26:3001
+   FALLBACK_TO_LOCAL_AI=true
+   
    # Network Configuration
    WEB_DOMAIN=web.korczewski.de
    DB_HOST=db.korczewski.de
    ```
 
-4. **Start the system**:
+4. **Configure Google Cloud Text-to-Speech**:
+   
+   The system supports multiple authentication methods for Google TTS:
+   
+   **Option A: Service Account (Recommended)**
+   - Place your Google service account JSON file in the project root
+   - The system will automatically detect and use: `gen-lang-client-0899352753-bf1b34113193.json`
+   - No additional configuration needed
+   
+   **Option B: API Key**
+   - Set `GOOGLE_TTS_KEY` in your `.env` file
+   - Useful for simpler setups or testing
+   
+   **Option C: Default Authentication**
+   - Uses Google Cloud environment variables
+   - Useful for production deployments with IAM roles
+
+5. **Start the system**:
    ```bash
    docker-compose up -d
    ```
 
-5. **Access the web interface**:
+6. **Access the web interface**:
    Open your browser to `http://localhost:3000`
 
 ## 🔧 Development & Maintenance
@@ -98,6 +120,30 @@ chmod +x rebuild.sh
 # Run the interactive rebuild script
 ./rebuild.sh
 ```
+
+### Google TTS Setup
+
+The project includes a setup script to help configure Google Cloud Text-to-Speech:
+
+```bash
+# Make the script executable (first time only)
+chmod +x setup-google-tts.sh
+
+# Run the TTS setup script
+./setup-google-tts.sh
+```
+
+**Features:**
+- Validates your Google service account JSON file
+- Checks Docker Compose configuration 
+- Tests TTS service authentication
+- Provides helpful troubleshooting guidance
+- Shows authentication method in use
+
+The system supports three authentication methods for Google TTS (in order of priority):
+1. **Service Account JSON** (Recommended): Automatically detected if file is present
+2. **API Key**: Set `GOOGLE_TTS_KEY` in your `.env` file  
+3. **Default Authentication**: Uses Google Cloud environment variables
 
 ### Database Reset Scripts
 

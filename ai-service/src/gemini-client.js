@@ -12,7 +12,10 @@ class GeminiClient {
         this.maxRetryDelay = 30000; // Max 30 seconds
         this.maxRetries = 5;
         
-        console.log(`🤖 Gemini client configured with model: ${this.gemId}`);
+        console.log(`🤖 Gemini client configured:`);
+        console.log(`   Model: ${this.gemId}`);
+        console.log(`   API Key: ${apiKey ? '***' + apiKey.slice(-4) : 'Not provided'}`);
+        console.log(`   Authentication: API Key`);
     }
 
     async generateAnswer(question, retryCount = 0) {

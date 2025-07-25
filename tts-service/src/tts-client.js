@@ -3,16 +3,29 @@ const fs = require('fs').promises;
 const path = require('path');
 
 class TTSClient {
-    constructor(apiKey) {
+    constructor(apiKey, serviceAccountPath) {
         // Initialize the Google Cloud Text-to-Speech client
-        if (apiKey) {
+        console.log('🎵 Initializing Google Cloud Text-to-Speech client...');
+        
+        if (serviceAccountPath && this.fileExists(serviceAccountPath)) {
+            // Use service account file for authentication
+            console.log(`🔐 Using service account file: ${serviceAccountPath}`);
+            this.client = new textToSpeech.TextToSpeechClient({
+                keyFilename: serviceAccountPath
+            });
+            this.authMethod = 'service-account';
+        } else if (apiKey) {
             // If API key is provided, use it for authentication
+            console.log(`🔑 Using API key authentication`);
             this.client = new textToSpeech.TextToSpeechClient({
                 apiKey: apiKey
             });
+            this.authMethod = 'api-key';
         } else {
-            // Use default authentication (service account file, etc.)
+            // Use default authentication (environment variables, etc.)
+            console.log(`🔒 Using default authentication (environment variables)`);
             this.client = new textToSpeech.TextToSpeechClient();
+            this.authMethod = 'default';
         }
         
         this.outputDir = '/app/public/mp3';
@@ -20,8 +33,19 @@ class TTSClient {
         this.maxRetryDelay = 30000;
         this.maxRetries = 5;
         
+        console.log(`✅ TTS client initialized with ${this.authMethod} authentication`);
+        
         // Ensure output directory exists
         this.ensureOutputDir();
+    }
+
+    fileExists(filePath) {
+        try {
+            const fs = require('fs');
+            return fs.existsSync(filePath);
+        } catch (error) {
+            return false;
+        }
     }
 
     async ensureOutputDir() {
@@ -148,24 +172,36 @@ class TTSClient {
     // Test method to verify TTS functionality
     async test() {
         try {
+            console.log(`🧪 Testing Google TTS with ${this.authMethod} authentication...`);
             const testPath = await this.convertToSpeech("Testing text to speech functionality.", "test");
-            console.log(`🧪 TTS test successful: ${testPath}`);
+            console.log(`✅ TTS test successful using ${this.authMethod}: ${testPath}`);
             
             // Clean up test file (both .mp3 and .txt fallback)
             try {
                 if (testPath.endsWith('.txt')) {
                     await fs.unlink(path.join(this.outputDir, 'test.txt'));
+                    console.log('🧪 Test fallback file cleaned up');
                 } else {
                     await fs.unlink(path.join(this.outputDir, 'test.mp3'));
+                    console.log('🧪 Test MP3 file cleaned up');
                 }
-                console.log('🧪 Test file cleaned up');
             } catch (cleanupError) {
                 console.warn('⚠️ Failed to clean up test file:', cleanupError.message);
             }
             
             return true;
         } catch (error) {
-            console.error(`🧪 TTS test failed:`, error.message);
+            console.error(`❌ TTS test failed with ${this.authMethod} authentication:`, error.message);
+            
+            // Provide helpful error messages based on authentication method
+            if (this.authMethod === 'service-account' && error.message.includes('ENOENT')) {
+                console.error('💡 Service account file might be missing or inaccessible');
+            } else if (error.message.includes('PERMISSION_DENIED')) {
+                console.error('💡 Check your Google Cloud TTS API permissions and billing');
+            } else if (error.message.includes('API has not been used')) {
+                console.error('💡 Enable the Google Cloud Text-to-Speech API in your project');
+            }
+            
             return false;
         }
     }

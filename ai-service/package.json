@@ -12,7 +12,8 @@
     "pg": "^8.11.3",
     "@google/generative-ai": "^0.17.1",
     "dotenv": "^16.3.1",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "node-fetch": "^2.7.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1",

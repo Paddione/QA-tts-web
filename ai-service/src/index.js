@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 const DatabaseManager = require('./database');
-const GeminiClient = require('./gemini-client');
+const HybridAIService = require('./hybrid-ai-service');
 const { v4: uuidv4 } = require('uuid');
 
 // Add correlation ID to console logs
@@ -16,34 +16,19 @@ console.warn = (...args) => originalWarn(`[AI-${process.pid}]`, ...args);
 class AIService {
     constructor() {
         this.db = new DatabaseManager();
-        this.gemini = null;
+        this.hybridAI = null;
         this.isRunning = false;
     }
 
     async start() {
         console.log('🚀 Starting AI Processing Service...');
 
-        // Validate environment variables
-        if (!process.env.GEMINI_API_KEY) {
-            console.error('❌ GEMINI_API_KEY environment variable is required');
-            process.exit(1);
-        }
-
-        // Initialize Gemini client
+        // Initialize Hybrid AI service
         try {
-            this.gemini = new GeminiClient(
-                process.env.GEMINI_API_KEY,
-                process.env.GEM_ID
-            );
-            console.log('🤖 Gemini client initialized');
-            
-            // In debug mode, list available models
-            if (process.env.DEBUG === 'true') {
-                console.log('🔍 Debug mode: Listing available models...');
-                await this.gemini.listModels();
-            }
+            this.hybridAI = new HybridAIService(this.db);
+            console.log('🤖 Hybrid AI service initialized');
         } catch (error) {
-            console.error('❌ Failed to initialize Gemini client:', error.message);
+            console.error('❌ Failed to initialize Hybrid AI service:', error.message);
             process.exit(1);
         }
 
@@ -63,11 +48,11 @@ class AIService {
         this.isRunning = true;
         console.log('✅ AI Processing Service is running and ready to process questions');
 
-        // Test Gemini API connection
+        // Test AI service connections
         try {
-            await this.gemini.test();
+            await this.hybridAI.test();
         } catch (error) {
-            console.warn('⚠️ Gemini API test failed, but service will continue running');
+            console.warn('⚠️ AI service test failed, but service will continue running');
         }
     }
 
@@ -102,50 +87,18 @@ class AIService {
 
     async processQuestion(questionId) {
         const correlationId = uuidv4().substring(0, 8);
-        const startTime = Date.now();
         
         try {
             console.log(`📝 [${correlationId}] Processing question ID: ${questionId}`);
 
-            // Get the question from database
-            const record = await this.db.getQuestion(questionId);
-            if (!record) {
-                console.warn(`⚠️ [${correlationId}] Question with ID ${questionId} not found`);
-                return;
-            }
+            // Use hybrid AI service to process the question
+            const result = await this.hybridAI.processQuestion(questionId);
 
-            if (record.answer) {
-                console.log(`ℹ️ [${correlationId}] Question ${questionId} already has an answer, skipping`);
-                return;
-            }
-
-            console.log(`❓ [${correlationId}] Question: "${record.question.substring(0, 100)}..."`);
-
-            // Generate answer using Gemini
-            const answer = await this.gemini.generateAnswer(record.question);
-
-            // Update database with the answer
-            await this.db.updateAnswer(questionId, answer);
-
-            const duration = Date.now() - startTime;
-            console.log(`✅ [${correlationId}] Successfully processed question ${questionId} in ${duration}ms`);
-            console.log(`💬 [${correlationId}] Answer: "${answer.substring(0, 200)}${answer.length > 200 ? '...' : ''}"`);
+            console.log(`✅ [${correlationId}] Successfully processed question ${questionId} using ${result.source || 'hybrid'} AI`);
 
         } catch (error) {
-            const duration = Date.now() - startTime;
-            console.error(`❌ [${correlationId}] Error processing question ${questionId} after ${duration}ms:`, error.message);
-            
-            // Optionally update database with error status (truncate long error messages)
-            try {
-                const errorMessage = error.message || 'Unknown error';
-                const truncatedError = errorMessage.length > 150 ? 
-                    `Error: Failed to generate answer - ${errorMessage.substring(0, 150)}...` : 
-                    `Error: Failed to generate answer - ${errorMessage}`;
-                
-                await this.db.updateAnswer(questionId, truncatedError);
-            } catch (dbError) {
-                console.error(`❌ [${correlationId}] Failed to update database with error:`, dbError.message);
-            }
+            console.error(`❌ [${correlationId}] Error processing question ${questionId}:`, error.message);
+            // Error handling is done inside the hybrid service
         }
     }
 
@@ -153,14 +106,18 @@ class AIService {
     async healthCheck() {
         try {
             const dbHealth = this.db.isConnected;
-            const geminiHealth = this.gemini ? true : false;
+            let aiStatus = null;
+            
+            if (this.hybridAI) {
+                aiStatus = await this.hybridAI.getSystemStatus();
+            }
             
             return {
                 status: 'healthy',
                 service: 'ai-service',
                 timestamp: new Date().toISOString(),
                 database: { connected: dbHealth },
-                gemini: { initialized: geminiHealth },
+                ai: aiStatus,
                 uptime: process.uptime()
             };
         } catch (error) {
