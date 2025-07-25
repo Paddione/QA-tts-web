@@ -49,6 +49,13 @@ services:
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
+      # German TTS Configuration
+      - TTS_LANGUAGE_CODE=de-DE
+      - TTS_VOICE_NAME=de-DE-Standard-A
+      - TTS_VOICE_GENDER=FEMALE
+      - TTS_SPEAKING_RATE=0.5
+      - TTS_PITCH=0.0
+      - TTS_VOLUME_GAIN=0.0
     volumes:
       - ./web-app/public/mp3:/app/public/mp3
       - ./gen-lang-client-0899352753-bf1b34113193.json:/app/config/google-service-account.json:ro
@@ -74,8 +81,8 @@ services:
       - WSL_HOST=${WSL_HOST}
       - REMOTE_CLIENT_HOST=${REMOTE_CLIENT_HOST}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-    expose:
-      - "3000"
+    ports:
+      - "3000:3000"
     volumes:
       - ./web-app/public/mp3:/app/public/mp3
     depends_on:

@@ -3,6 +3,12 @@ const fetch = require('node-fetch');
 class EnhancedAIClient {
     constructor(baseUrl) {
         this.baseUrl = baseUrl || process.env.ENHANCED_AI_SERVICE_URL || 'http://10.1.0.26:3001';
+        
+        // Ensure URL has protocol
+        if (this.baseUrl && !this.baseUrl.startsWith('http://') && !this.baseUrl.startsWith('https://')) {
+            this.baseUrl = 'http://' + this.baseUrl;
+        }
+        
         this.timeout = parseInt(process.env.LOCAL_AI_TIMEOUT) || 30000; // 30 seconds
         this.maxRetries = 2;
         

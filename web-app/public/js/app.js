@@ -25,6 +25,9 @@ class ClipboardTTSApp {
         // Load records
         await this.loadRecords();
         
+        // Start auto-refresh
+        this.startAutoRefresh();
+        
         console.log('✅ App initialized successfully');
     }
 
@@ -89,6 +92,18 @@ class ClipboardTTSApp {
         // Refresh button
         this.refreshBtn.addEventListener('click', () => this.loadRecords());
         
+        // Record list click delegation - THIS IS THE KEY FIX
+        this.recordsList.addEventListener('click', (event) => {
+            const recordItem = event.target.closest('.record-item');
+            if (recordItem) {
+                const recordId = parseInt(recordItem.getAttribute('data-id'));
+                if (recordId) {
+                    console.log(`🖱️ Clicked record ${recordId}`);
+                    this.selectRecord(recordId);
+                }
+            }
+        });
+        
         // Audio controls
         this.playPauseBtn.addEventListener('click', () => this.togglePlayPause());
         this.restartBtn.addEventListener('click', () => this.restartAudio());
@@ -101,15 +116,15 @@ class ClipboardTTSApp {
         this.volumeSlider.addEventListener('input', (e) => this.setVolume(e.target.value));
         this.volumeBtn.addEventListener('click', () => this.toggleMute());
         
-        // Delete functionality
+        // Delete controls
         this.deleteBtn.addEventListener('click', () => this.showDeleteModal());
         this.deleteConfirmBtn.addEventListener('click', () => this.confirmDelete());
         this.deleteCancelBtn.addEventListener('click', () => this.hideDeleteModal());
         
-        // Error handling
+        // Error controls
         this.errorCloseBtn.addEventListener('click', () => this.hideError());
         
-        // Audio element events
+        // Audio events
         this.audioElement.addEventListener('loadedmetadata', () => this.updateTotalTime());
         this.audioElement.addEventListener('timeupdate', () => this.updateProgress());
         this.audioElement.addEventListener('ended', () => this.onAudioEnded());
@@ -125,12 +140,12 @@ class ClipboardTTSApp {
     async checkHealth() {
         try {
             const response = await fetch('/health');
-            const health = await response.json();
+            const result = await response.json();
             
-            if (health.status === 'ok' && health.database.connected) {
+            if (result.status === 'ok') {
                 this.setStatus('online', 'System Online');
             } else {
-                this.setStatus('offline', 'System Issues');
+                this.setStatus('offline', 'System Error');
             }
         } catch (error) {
             console.error('❌ Health check failed:', error);
@@ -145,6 +160,7 @@ class ClipboardTTSApp {
 
     async loadRecords() {
         try {
+            console.log('📋 Loading records...');
             this.showLoading('Loading records...');
             
             const response = await fetch('/api/records');
@@ -154,6 +170,7 @@ class ClipboardTTSApp {
                 throw new Error(result.error || 'Failed to load records');
             }
             
+            console.log(`📋 Loaded ${result.data.length} records:`, result.data);
             this.displayRecords(result.data);
             
         } catch (error) {
@@ -165,6 +182,8 @@ class ClipboardTTSApp {
     }
 
     displayRecords(recordIds) {
+        console.log('📋 Displaying records:', recordIds);
+        
         if (!recordIds || recordIds.length === 0) {
             this.recordsList.innerHTML = `
                 <div class="no-records">
@@ -177,8 +196,9 @@ class ClipboardTTSApp {
             return;
         }
 
+        // FIXED: Removed inline onclick handlers, using event delegation instead
         this.recordsList.innerHTML = recordIds.map(id => `
-            <div class="record-item" data-id="${id}" onclick="app.selectRecord(${id})">
+            <div class="record-item" data-id="${id}">
                 <div class="record-id">Record #${id}</div>
                 <div class="record-preview" id="preview-${id}">Loading...</div>
             </div>
@@ -213,11 +233,17 @@ class ClipboardTTSApp {
 
     async selectRecord(id) {
         try {
+            console.log(`🎯 Selecting record ${id}`);
+            
             // Update UI to show selected
             document.querySelectorAll('.record-item').forEach(item => {
                 item.classList.remove('active');
             });
-            document.querySelector(`[data-id="${id}"]`).classList.add('active');
+            const selectedItem = document.querySelector(`[data-id="${id}"]`);
+            if (selectedItem) {
+                selectedItem.classList.add('active');
+                console.log(`✅ Marked record ${id} as active`);
+            }
             
             this.showLoading('Loading record...');
             
@@ -228,6 +254,7 @@ class ClipboardTTSApp {
                 throw new Error(result.error || 'Failed to load record');
             }
             
+            console.log(`📄 Loaded record ${id}:`, result.data);
             this.displayRecord(result.data);
             
         } catch (error) {
@@ -239,11 +266,15 @@ class ClipboardTTSApp {
     }
 
     displayRecord(record) {
+        console.log(`🖥️ Displaying record:`, record);
+        
         this.currentRecord = record;
         
         // Hide welcome message and show record content
         this.welcomeMessage.classList.add('hidden');
         this.recordContent.classList.remove('hidden');
+        
+        console.log(`👁️ Showing record content, hiding welcome message`);
         
         // Update record info
         this.recordId.textContent = record.id;
@@ -269,10 +300,12 @@ class ClipboardTTSApp {
         
         // Display question
         this.questionText.textContent = record.question || 'No question text';
+        console.log(`❓ Question: ${record.question}`);
         
         // Display answer
         if (record.answer) {
             this.answerText.textContent = record.answer;
+            console.log(`💬 Answer: ${record.answer.substring(0, 100)}...`);
         } else {
             this.answerText.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 1rem; color: #718096;">
@@ -280,16 +313,21 @@ class ClipboardTTSApp {
                     <span>AI is processing your question...</span>
                 </div>
             `;
+            console.log(`⏳ No answer yet, showing spinner`);
         }
         
         // Handle audio
         if (record.mp3path && !record.mp3path.startsWith('ERROR:')) {
+            console.log(`🎵 Setting up audio: ${record.mp3path}`);
             this.setupAudio(record.mp3path);
             this.audioSection.classList.remove('hidden');
         } else {
+            console.log(`🔇 No audio available`);
             this.audioSection.classList.add('hidden');
             this.resetAudio();
         }
+        
+        console.log(`✅ Record display complete`);
     }
 
     setupAudio(mp3Path) {
@@ -553,11 +591,6 @@ class ClipboardTTSApp {
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.app = new ClipboardTTSApp();
-    
-    // Start auto-refresh after a delay
-    setTimeout(() => {
-        window.app.startAutoRefresh();
-    }, 5000);
 });
 
 // Handle page visibility changes

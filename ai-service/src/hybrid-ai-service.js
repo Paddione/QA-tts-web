@@ -4,10 +4,15 @@ const GeminiClient = require('./gemini-client');
 class HybridAIService {
     constructor(db) {
         this.db = db;
-        this.enhancedClient = new EnhancedAIClient();
+        this.enhancedClient = null;
         this.geminiClient = null;
         this.useEnhanced = process.env.USE_ENHANCED_AI === 'true';
         this.fallbackToLocal = process.env.FALLBACK_TO_LOCAL_AI === 'true';
+        
+        // Only initialize Enhanced AI client if needed
+        if (this.useEnhanced) {
+            this.enhancedClient = new EnhancedAIClient();
+        }
         
         // Initialize Gemini client if needed
         if (!this.useEnhanced || this.fallbackToLocal) {
@@ -72,11 +77,18 @@ class HybridAIService {
         } catch (error) {
             console.error(`❌ Failed to process question ${questionId}:`, error.message);
             
-            // Update database with error
+            // Only update database with error if no answer exists yet
             const processingTime = Date.now() - startTime;
             try {
-                const errorMessage = `Error: ${error.message || 'Unknown error during AI processing'}`;
-                await this.updateAnswer(questionId, errorMessage, 'error', processingTime, false, []);
+                // Check if record already has an answer
+                const existingRecord = await this.db.getQuestion(questionId);
+                if (!existingRecord || !existingRecord.answer) {
+                    const errorMessage = `Error: ${error.message || 'Unknown error during AI processing'}`;
+                    console.log(`💾 Updating database with error for question ${questionId}: ${errorMessage}`);
+                    await this.updateAnswer(questionId, errorMessage, 'error', processingTime, false, []);
+                } else {
+                    console.log(`ℹ️ Question ${questionId} already has an answer, not overwriting with error`);
+                }
             } catch (dbError) {
                 console.error(`❌ Failed to update database with error for question ${questionId}:`, dbError.message);
             }
@@ -171,7 +183,7 @@ class HybridAIService {
         };
 
         // Check enhanced service
-        if (this.useEnhanced) {
+        if (this.useEnhanced && this.enhancedClient) {
             try {
                 status.enhanced.healthy = await this.enhancedClient.healthCheck();
                 if (status.enhanced.healthy) {

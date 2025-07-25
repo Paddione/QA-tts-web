@@ -33,7 +33,24 @@ class TTSClient {
         this.maxRetryDelay = 30000;
         this.maxRetries = 5;
         
+        // Configure voice settings - German language pack
+        this.voiceConfig = {
+            languageCode: process.env.TTS_LANGUAGE_CODE || 'de-DE',
+            name: process.env.TTS_VOICE_NAME || 'de-DE-Standard-A', // German female voice
+            ssmlGender: process.env.TTS_VOICE_GENDER || 'FEMALE'
+        };
+        
+        // Configure audio settings
+        this.audioConfig = {
+            audioEncoding: 'MP3',
+            speakingRate: parseFloat(process.env.TTS_SPEAKING_RATE) || 1.0,
+            pitch: parseFloat(process.env.TTS_PITCH) || 0.0,
+            volumeGainDb: parseFloat(process.env.TTS_VOLUME_GAIN) || 0.0
+        };
+        
         console.log(`✅ TTS client initialized with ${this.authMethod} authentication`);
+        console.log(`🇩🇪 Voice configuration: ${this.voiceConfig.name} (${this.voiceConfig.languageCode})`);
+        console.log(`🎛️ Audio settings: Rate ${this.audioConfig.speakingRate}x, Pitch ${this.audioConfig.pitch}, Volume ${this.audioConfig.volumeGainDb}dB`);
         
         // Ensure output directory exists
         this.ensureOutputDir();
@@ -60,22 +77,13 @@ class TTSClient {
 
     async convertToSpeech(text, recordId, retryCount = 0) {
         try {
-            console.log(`🎵 Converting text to speech for record ${recordId} (${text.length} characters)`);
+            console.log(`🎵 Converting text to speech for record ${recordId} (${text.length} characters) using ${this.voiceConfig.name}`);
 
-            // Prepare the request
+            // Prepare the request with German voice configuration
             const request = {
                 input: { text: text },
-                voice: {
-                    languageCode: 'en-US',
-                    name: 'en-US-Standard-D', // A pleasant female voice
-                    ssmlGender: 'NEUTRAL'
-                },
-                audioConfig: {
-                    audioEncoding: 'MP3',
-                    speakingRate: 1.0,
-                    pitch: 0.0,
-                    volumeGainDb: 0.0
-                }
+                voice: this.voiceConfig,
+                audioConfig: this.audioConfig
             };
 
             // Call the Google TTS API
@@ -87,7 +95,7 @@ class TTSClient {
             
             await fs.writeFile(filepath, response.audioContent, 'binary');
 
-            console.log(`✅ Audio file saved: ${filepath}`);
+            console.log(`✅ German audio file saved: ${filepath}`);
             
             // Return the relative path for database storage
             return `/mp3/${filename}`;
@@ -172,9 +180,12 @@ class TTSClient {
     // Test method to verify TTS functionality
     async test() {
         try {
-            console.log(`🧪 Testing Google TTS with ${this.authMethod} authentication...`);
-            const testPath = await this.convertToSpeech("Testing text to speech functionality.", "test");
-            console.log(`✅ TTS test successful using ${this.authMethod}: ${testPath}`);
+            console.log(`🧪 Testing Google TTS with ${this.authMethod} authentication and ${this.voiceConfig.name} voice...`);
+            const testText = this.voiceConfig.languageCode.startsWith('de-') ? 
+                "Dies ist ein Test der deutschen Text-zu-Sprache-Funktionalität." : 
+                "Testing text to speech functionality.";
+            const testPath = await this.convertToSpeech(testText, "test");
+            console.log(`✅ TTS test successful using ${this.authMethod} with ${this.voiceConfig.name}: ${testPath}`);
             
             // Clean up test file (both .mp3 and .txt fallback)
             try {

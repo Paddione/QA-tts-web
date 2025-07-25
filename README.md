@@ -99,12 +99,34 @@ A distributed application that captures clipboard content, processes it through 
    - Uses Google Cloud environment variables
    - Useful for production deployments with IAM roles
 
-5. **Start the system**:
+5. **German Voice Configuration**:
+   
+   The system is pre-configured to use German text-to-speech. You can customize the voice settings:
+   
+   ```bash
+   # German TTS Voice Configuration (already set in docker-compose.yml)
+   TTS_LANGUAGE_CODE=de-DE          # German (Germany)
+   TTS_VOICE_NAME=de-DE-Standard-A  # German female voice
+   TTS_VOICE_GENDER=FEMALE          # Voice gender
+   TTS_SPEAKING_RATE=1.0           # Speaking speed (0.25-4.0)
+   TTS_PITCH=0.0                   # Voice pitch (-20.0 to 20.0)
+   TTS_VOLUME_GAIN=0.0             # Volume adjustment in dB (-96.0 to 16.0)
+   ```
+   
+   **Available German Voices:**
+   - `de-DE-Standard-A` (Female) - Standard quality
+   - `de-DE-Standard-B` (Male) - Standard quality  
+   - `de-DE-Wavenet-A` (Female) - High quality (premium)
+   - `de-DE-Wavenet-B` (Male) - High quality (premium)
+   - `de-DE-Neural2-A` (Female) - Neural voice (premium)
+   - `de-DE-Neural2-B` (Male) - Neural voice (premium)
+
+6. **Start the system**:
    ```bash
    docker-compose up -d
    ```
 
-6. **Access the web interface**:
+7. **Access the web interface**:
    Open your browser to `http://localhost:3000`
 
 ## 🔧 Development & Maintenance

@@ -11,11 +11,11 @@ RUN npm install --omit=dev
 # Copy source code
 COPY src/ ./src/
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001
+# Give ownership of working directory to node user (UID 1000)
+# This matches the typical host user UID to avoid permission issues
+RUN chown -R node:node /app
 
-USER nextjs
+USER node
 
 EXPOSE 3001
 
