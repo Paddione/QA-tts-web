@@ -1,0 +1,100 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: clipboard_postgres
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - clipboard_network
+    restart: unless-stopped
+
+  ai-service:
+    build: ./ai-service
+    container_name: clipboard_ai
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEM_ID=${GEM_ID}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+    depends_on:
+      - postgres
+    networks:
+      - clipboard_network
+    restart: unless-stopped
+
+  tts-service:
+    build: ./tts-service
+    container_name: clipboard_tts
+    environment:
+      - GOOGLE_TTS_KEY=${GOOGLE_TTS_KEY}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - ./web-app/public/mp3:/app/public/mp3
+    depends_on:
+      - postgres
+    networks:
+      - clipboard_network
+    restart: unless-stopped
+
+  web-app:
+    build: ./web-app
+    container_name: clipboard_web
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - PORT=3000
+    expose:
+      - "3000"
+    volumes:
+      - ./web-app/public/mp3:/app/public/mp3
+    depends_on:
+      - postgres
+    networks:
+      - clipboard_network
+    restart: unless-stopped
+
+  nginx-proxy-manager:
+    image: 'jc21/nginx-proxy-manager:latest'
+    container_name: clipboard_proxy
+    ports:
+      - '80:80'
+      - '443:443'
+      - '81:81'  # Admin UI
+    environment:
+      - DB_SQLITE_FILE=/data/database.sqlite
+      - DISABLE_IPV6=true
+      - CERT_MAIL=${CERT_MAIL}
+    volumes:
+      - npm_data:/data
+      - npm_letsencrypt:/etc/letsencrypt
+    depends_on:
+      - web-app
+    networks:
+      - clipboard_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  npm_data:
+  npm_letsencrypt:
+
+networks:
+  clipboard_network:
+    driver: bridge 

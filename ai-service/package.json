@@ -1,0 +1,24 @@
+{
+  "name": "clipboard-ai-service",
+  "version": "1.0.0",
+  "description": "AI processing service for clipboard-to-TTS system",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "pg": "^8.11.3",
+    "@google/generative-ai": "^0.17.1",
+    "dotenv": "^16.3.1",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "jest": "^29.7.0"
+  },
+  "keywords": ["ai", "gemini", "clipboard", "tts"],
+  "author": "Clipboard TTS System",
+  "license": "MIT"
+} 
