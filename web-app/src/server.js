@@ -46,9 +46,11 @@ class WebServer {
             contentSecurityPolicy: {
                 directives: {
                     defaultSrc: ["'self'"],
-                    styleSrc: ["'self'", "'unsafe-inline'"],
+                    styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+                    fontSrc: ["'self'", "https://fonts.gstatic.com"],
                     scriptSrc: ["'self'", "'unsafe-inline'"],
-                    mediaSrc: ["'self'"]
+                    mediaSrc: ["'self'"],
+                    connectSrc: ["'self'"]
                 }
             }
         }));

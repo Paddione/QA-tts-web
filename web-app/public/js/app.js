@@ -125,16 +125,22 @@ class ClipboardTTSApp {
         this.errorCloseBtn.addEventListener('click', () => this.hideError());
         
         // Audio events
-        this.audioElement.addEventListener('loadedmetadata', () => this.updateTotalTime());
-        this.audioElement.addEventListener('timeupdate', () => this.updateProgress());
-        this.audioElement.addEventListener('ended', () => this.onAudioEnded());
-        this.audioElement.addEventListener('error', (e) => this.onAudioError(e));
+        this.setupAudioEventListeners();
         
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => this.handleKeyboard(e));
         
         // Window resize
         window.addEventListener('resize', () => this.handleResize());
+    }
+
+    setupAudioEventListeners() {
+        if (this.audioElement) {
+            this.audioElement.addEventListener('loadedmetadata', () => this.updateTotalTime());
+            this.audioElement.addEventListener('timeupdate', () => this.updateProgress());
+            this.audioElement.addEventListener('ended', () => this.onAudioEnded());
+            this.audioElement.addEventListener('error', (e) => this.onAudioError(e));
+        }
     }
 
     async checkHealth() {
@@ -320,9 +326,17 @@ class ClipboardTTSApp {
         if (record.mp3path && !record.mp3path.startsWith('ERROR:')) {
             console.log(`🎵 Setting up audio: ${record.mp3path}`);
             this.setupAudio(record.mp3path);
-            this.audioSection.classList.remove('hidden');
+        } else if (record.answer && !record.mp3path) {
+            // Answer exists but no audio yet - show generating message
+            console.log(`🎵 Audio being generated for answered question`);
+            this.showAudioNotReady();
+        } else if (record.mp3path && record.mp3path.startsWith('ERROR:')) {
+            // There was an error generating audio
+            console.log(`❌ Audio generation failed: ${record.mp3path}`);
+            this.audioSection.classList.add('hidden');
+            this.resetAudio();
         } else {
-            console.log(`🔇 No audio available`);
+            console.log(`🔇 No audio available yet`);
             this.audioSection.classList.add('hidden');
             this.resetAudio();
         }
@@ -334,14 +348,36 @@ class ClipboardTTSApp {
         // Reset audio state
         this.resetAudio();
         
-        // Set audio source
-        this.audioElement.src = mp3Path;
-        this.audioElement.load();
-        
-        // Reset controls
-        this.currentSpeed = 1.0;
-        this.speedText.textContent = '1x';
-        this.audioElement.playbackRate = 1.0;
+        // Check if file exists before setting source
+        this.checkAudioFile(mp3Path).then(exists => {
+            if (exists) {
+                // Restore audio player if it was replaced with "generating" message
+                this.restoreAudioPlayer();
+                this.audioSection.classList.remove('hidden');
+                
+                // Set audio source
+                this.audioElement.src = mp3Path;
+                this.audioElement.load();
+                
+                // Reset controls
+                this.currentSpeed = 1.0;
+                this.speedText.textContent = '1x';
+                this.audioElement.playbackRate = 1.0;
+            } else {
+                console.warn(`⚠️ Audio file not found: ${mp3Path}`);
+                this.showAudioNotReady();
+            }
+        }).catch(error => {
+            console.warn(`⚠️ Could not verify audio file: ${mp3Path}`, error);
+            // Still try to load the file, but don't show errors immediately
+            this.restoreAudioPlayer();
+            this.audioSection.classList.remove('hidden');
+            this.audioElement.src = mp3Path;
+            this.audioElement.load();
+            this.currentSpeed = 1.0;
+            this.speedText.textContent = '1x';
+            this.audioElement.playbackRate = 1.0;
+        });
     }
 
     resetAudio() {
@@ -457,10 +493,74 @@ class ClipboardTTSApp {
         this.updateProgress();
     }
 
+    async checkAudioFile(mp3Path) {
+        try {
+            const response = await fetch(mp3Path, { method: 'HEAD' });
+            return response.ok;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    showAudioNotReady() {
+        // Show a message that audio is being generated
+        this.audioSection.classList.remove('hidden');
+        const audioPlayer = this.audioSection.querySelector('.audio-player');
+        
+        // Store original audio player HTML if not already stored
+        if (!this.originalAudioPlayerHTML) {
+            this.originalAudioPlayerHTML = audioPlayer.innerHTML;
+        }
+        
+        audioPlayer.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background: #f7fafc; border-radius: 0.5rem; color: #4a5568;">
+                <div class="spinner"></div>
+                <span>🎵 Audio is being generated... Please wait.</span>
+            </div>
+        `;
+    }
+
+    restoreAudioPlayer() {
+        if (this.originalAudioPlayerHTML) {
+            const audioPlayer = this.audioSection.querySelector('.audio-player');
+            audioPlayer.innerHTML = this.originalAudioPlayerHTML;
+            
+            // Re-initialize audio elements after restoring HTML
+            this.audioElement = document.getElementById('audio-element');
+            this.playPauseBtn = document.getElementById('play-pause-btn');
+            this.playIcon = this.playPauseBtn.querySelector('.play-icon');
+            this.restartBtn = document.getElementById('restart-btn');
+            this.speedBtn = document.getElementById('speed-btn');
+            this.speedText = this.speedBtn.querySelector('.speed-text');
+            this.progressBar = document.getElementById('progress-bar');
+            this.progressFill = document.getElementById('progress-fill');
+            this.progressHandle = document.getElementById('progress-handle');
+            this.currentTime = document.getElementById('current-time');
+            this.totalTime = document.getElementById('total-time');
+            this.volumeBtn = document.getElementById('volume-btn');
+            this.volumeIcon = this.volumeBtn.querySelector('.volume-icon');
+            this.volumeSlider = document.getElementById('volume-slider');
+            
+            // Re-attach event listeners for audio controls
+            this.setupAudioEventListeners();
+        }
+    }
+
     onAudioError(event) {
-        console.error('❌ Audio error:', event);
-        this.showError('Failed to load or play audio file');
-        this.resetAudio();
+        // Be more specific about the error and less noisy
+        const errorType = event.target?.error?.code || 'unknown';
+        console.warn(`⚠️ Audio loading issue (${errorType}):`, event);
+        
+        // Only show error to user if this isn't a "file not found" during processing
+        if (this.audioElement.src && !this.audioElement.src.includes('blob:')) {
+            // Try to reload the audio once after a short delay
+            setTimeout(() => {
+                if (this.audioElement.src) {
+                    console.log('🔄 Retrying audio load...');
+                    this.audioElement.load();
+                }
+            }, 2000);
+        }
     }
 
     showDeleteModal() {

@@ -4,6 +4,9 @@ Windows Clipboard Capture Client for Clipboard-to-TTS System
 
 This application runs as a background service and captures clipboard content
 when CTRL+ALT+C is pressed, then inserts it into the database.
+
+The service automatically restarts if it dies and has no hotkey to stop it.
+Use CTRL+C or close the terminal to stop the service.
 """
 
 import sys
@@ -15,6 +18,8 @@ import json
 from typing import Optional, Dict, Any
 import signal
 import platform
+import traceback
+from datetime import datetime
 
 # Set up UTF-8 encoding for Windows console
 if platform.system() == "Windows":
@@ -72,6 +77,8 @@ class Icons:
             self.STATS = "📊"
             self.PLUG = "🔌"
             self.BOOM = "💥"
+            self.RESTART = "🔁"
+            self.SHIELD = "🛡️"
         else:
             self.TARGET = "[TARGET]"
             self.ROCKET = "[START]"
@@ -85,6 +92,8 @@ class Icons:
             self.STATS = "[STATS]"
             self.PLUG = "[CONN]"
             self.BOOM = "[CRASH]"
+            self.RESTART = "[RESTART]"
+            self.SHIELD = "[GUARD]"
     
     def _can_use_emojis(self):
         """Check if the terminal can display emojis"""
@@ -109,7 +118,8 @@ class SafeFormatter(logging.Formatter):
                     '🎯': '[TARGET]', '🚀': '[START]', '🔄': '[RETRY]',
                     '⚠️': '[WARN]', '❌': '[ERROR]', '✅': '[OK]',
                     '⌨️': '[KEY]', '📋': '[CLIP]', '🛑': '[STOP]',
-                    '📊': '[STATS]', '🔌': '[CONN]', '💥': '[CRASH]'
+                    '📊': '[STATS]', '🔌': '[CONN]', '💥': '[CRASH]',
+                    '🔁': '[RESTART]', '🛡️': '[GUARD]'
                 }
                 for emoji, replacement in emoji_map.items():
                     record.msg = record.msg.replace(emoji, replacement)
@@ -256,11 +266,13 @@ class ClipboardService:
         self.db = DatabaseConnector()
         self.clipboard = ClipboardCapture()
         self.is_running = False
+        self.should_restart = True
         self.stats = {
             'captures': 0,
             'successful_inserts': 0,
             'failed_inserts': 0,
-            'start_time': None
+            'start_time': None,
+            'restart_count': 0
         }
     
     def start(self):
@@ -271,28 +283,33 @@ class ClipboardService:
         if not self.db.connect():
             logger.error(f"{icons.ERROR} Failed to establish initial database connection")
             if not self.db.reconnect_with_backoff():
-                logger.error(f"{icons.ERROR} Could not establish database connection. Exiting.")
+                logger.error(f"{icons.ERROR} Could not establish database connection. Will retry later...")
                 return False
         
-        # Register hotkey
+        # Register hotkeys
         try:
             keyboard.add_hotkey('ctrl+alt+c', self._on_hotkey_pressed)
-            logger.info(f"{icons.KEYBOARD} Hotkey registered: CTRL+ALT+C")
+            keyboard.add_hotkey('ctrl+shift+q', self._on_stop_hotkey_pressed)
+            logger.info(f"{icons.KEYBOARD} Hotkeys registered: CTRL+ALT+C (capture), CTRL+SHIFT+Q (stop)")
         except Exception as e:
-            logger.error(f"{icons.ERROR} Failed to register hotkey: {e}")
+            logger.error(f"{icons.ERROR} Failed to register hotkeys: {e}")
             return False
         
         self.is_running = True
-        self.stats['start_time'] = time.time()
+        if self.stats['start_time'] is None:
+            self.stats['start_time'] = time.time()
         
         logger.info(f"{icons.SUCCESS} Clipboard Capture Service is running")
         logger.info("Press CTRL+ALT+C to capture clipboard content")
-        logger.info("Press CTRL+C to stop the service")
+        logger.info("Use CTRL+SHIFT+Q in terminal to stop the service")
         
         return True
     
     def _on_hotkey_pressed(self):
-        """Handle hotkey press event"""
+        """Handle capture hotkey press event"""
+        if not self.is_running:
+            return
+            
         logger.info(f"{icons.TARGET} Hotkey pressed: CTRL+ALT+C")
         
         # Get clipboard content
@@ -306,6 +323,15 @@ class ClipboardService:
         
         # Insert into database
         self._insert_question_with_retry(text)
+    
+    def _on_stop_hotkey_pressed(self):
+        """Handle stop hotkey press event"""
+        logger.info(f"{icons.STOP} Stop hotkey pressed: CTRL+SHIFT+Q")
+        logger.info(f"{icons.STOP} Initiating graceful shutdown...")
+        self.stop(shutdown=True)
+        # Signal the guardian to stop as well
+        if hasattr(self, '_guardian_ref'):
+            self._guardian_ref.should_run = False
     
     def _insert_question_with_retry(self, question: str):
         """Insert question with automatic retry on connection failure"""
@@ -329,11 +355,13 @@ class ClipboardService:
                 self.stats['failed_inserts'] += 1
                 logger.error(f"{icons.ERROR} Failed to store question - no database connection")
     
-    def stop(self):
+    def stop(self, shutdown=False):
         """Stop the service"""
         logger.info(f"{icons.STOP} Stopping Clipboard Capture Service...")
         
         self.is_running = False
+        if shutdown:
+            self.should_restart = False
         
         # Unregister hotkey
         try:
@@ -345,26 +373,113 @@ class ClipboardService:
         # Close database connection
         self.db.close()
         
-        # Print statistics
-        if self.stats['start_time']:
+        # Print statistics only on shutdown
+        if shutdown and self.stats['start_time']:
             runtime = time.time() - self.stats['start_time']
-            logger.info(f"{icons.STATS} Service Statistics:")
-            logger.info(f"  Runtime: {runtime:.1f} seconds")
-            logger.info(f"  Captures: {self.stats['captures']}")
+            logger.info(f"{icons.STATS} Final Service Statistics:")
+            logger.info(f"  Total runtime: {runtime:.1f} seconds")
+            logger.info(f"  Restart count: {self.stats['restart_count']}")
+            logger.info(f"  Total captures: {self.stats['captures']}")
             logger.info(f"  Successful inserts: {self.stats['successful_inserts']}")
             logger.info(f"  Failed inserts: {self.stats['failed_inserts']}")
         
-        logger.info(f"{icons.SUCCESS} Clipboard Capture Service stopped")
+        if shutdown:
+            logger.info(f"{icons.SUCCESS} Clipboard Capture Service stopped")
     
     def run_forever(self):
         """Run the service until interrupted"""
         try:
             while self.is_running:
                 time.sleep(1)
+                # Health check - verify hotkeys are still registered
+                if self.is_running and not keyboard._hotkeys:
+                    logger.warning(f"{icons.WARNING} Hotkeys appear to be unregistered, attempting to re-register...")
+                    try:
+                        keyboard.add_hotkey('ctrl+alt+c', self._on_hotkey_pressed)
+                        keyboard.add_hotkey('ctrl+shift+q', self._on_stop_hotkey_pressed)
+                        logger.info(f"{icons.SUCCESS} Hotkeys re-registered successfully")
+                    except Exception as e:
+                        logger.error(f"{icons.ERROR} Failed to re-register hotkeys: {e}")
+                        raise Exception("Hotkey registration failed")
         except KeyboardInterrupt:
             logger.info(f"\n{icons.STOP} Received interrupt signal")
-        finally:
+            self.stop(shutdown=True)
+        except Exception as e:
+            logger.error(f"{icons.ERROR} Service error: {e}")
             self.stop()
+            raise
+
+
+class ServiceGuardian:
+    """Guardian class that manages service lifecycle and automatic restarts"""
+    
+    def __init__(self):
+        self.service = None
+        self.should_run = True
+        self.restart_delay = 5  # seconds
+        self.max_restart_delay = 60  # max 1 minute
+        
+    def run(self):
+        """Main guardian loop that manages the service"""
+        logger.info(f"{icons.SHIELD} Service Guardian started")
+        logger.info("Service will automatically restart if it dies")
+        logger.info("Use CTRL+SHIFT+Q to stop the service completely")
+        
+        while self.should_run:
+            try:
+                self.service = ClipboardService()
+                # Pass guardian reference to service for stop hotkey
+                self.service._guardian_ref = self
+                
+                # Attempt to start the service
+                if self.service.start():
+                    logger.info(f"{icons.SUCCESS} Service started successfully")
+                    self.restart_delay = 5  # Reset restart delay on successful start
+                    
+                    # Run the service
+                    self.service.run_forever()
+                    
+                    # If we get here, service stopped normally
+                    if not self.should_run:
+                        break
+                        
+                else:
+                    logger.error(f"{icons.ERROR} Failed to start service")
+                
+                # Service died, restart if we should
+                if self.should_run and self.service.should_restart:
+                    self.service.stats['restart_count'] += 1
+                    logger.warning(f"{icons.RESTART} Service died, restarting in {self.restart_delay} seconds... (restart #{self.service.stats['restart_count']})")
+                    time.sleep(self.restart_delay)
+                    
+                    # Increase restart delay for next time (exponential backoff)
+                    self.restart_delay = min(self.restart_delay * 1.5, self.max_restart_delay)
+                    
+                elif not self.service.should_restart:
+                    logger.info(f"{icons.STOP} Service stopped, not restarting")
+                    break
+                    
+            except KeyboardInterrupt:
+                logger.info(f"\n{icons.STOP} Guardian received interrupt signal")
+                self.should_run = False
+                if self.service:
+                    self.service.stop(shutdown=True)
+                break
+                
+            except Exception as e:
+                logger.error(f"{icons.BOOM} Unexpected guardian error: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                
+                if self.should_run:
+                    if self.service:
+                        self.service.stats['restart_count'] += 1
+                    logger.warning(f"{icons.RESTART} Restarting service in {self.restart_delay} seconds due to error...")
+                    time.sleep(self.restart_delay)
+                    self.restart_delay = min(self.restart_delay * 1.5, self.max_restart_delay)
+                else:
+                    break
+        
+        logger.info(f"{icons.SHIELD} Service Guardian stopped")
 
 
 def signal_handler(signum, frame):
@@ -379,8 +494,8 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
-    logger.info(f"{icons.TARGET} Clipboard-to-TTS Windows Client v1.0")
-    logger.info("=" * 50)
+    logger.info(f"{icons.TARGET} Clipboard-to-TTS Windows Client v2.0 (Auto-Restart)")
+    logger.info("=" * 60)
     
     # Check if running as administrator (required for global hotkeys)
     try:
@@ -388,21 +503,13 @@ def main():
         is_admin = ctypes.windll.shell32.IsUserAnAdmin()
         if not is_admin:
             logger.warning(f"{icons.WARNING} Not running as administrator. Hotkeys may not work globally.")
+            logger.info("Consider running as administrator for better hotkey reliability.")
     except:
         logger.warning(f"{icons.WARNING} Could not check administrator status")
     
-    # Create and start service
-    service = ClipboardService()
-    
-    if service.start():
-        try:
-            service.run_forever()
-        except Exception as e:
-            logger.error(f"{icons.BOOM} Unexpected error: {e}")
-            service.stop()
-    else:
-        logger.error(f"{icons.ERROR} Failed to start service")
-        sys.exit(1)
+    # Create and start guardian
+    guardian = ServiceGuardian()
+    guardian.run()
 
 
 if __name__ == "__main__":

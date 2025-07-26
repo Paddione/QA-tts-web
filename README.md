@@ -2,6 +2,8 @@
 
 A distributed application that captures clipboard content, processes it through AI to generate intelligent responses, converts those responses to speech, and provides a web interface for playback and management.
 
+> **⚠️ Installation Note**: This is a Docker-based system. Do NOT run `pip install` on the main directory. For the Windows client, navigate to `windows-client/` first and follow the instructions there.
+
 ## 🎯 Features
 
 - **AI-Powered Responses**: Automatically generates intelligent answers using Google's Gemini AI
@@ -43,9 +45,15 @@ A distributed application that captures clipboard content, processes it through 
 
 ### Prerequisites
 
+**For Main System (Docker Services):**
 - Docker and Docker Compose
 - Google Gemini API key
 - Google Cloud Text-to-Speech API key (optional, can use default auth)
+
+**For Windows Client (Optional):**
+- Windows 10 or newer
+- Python 3.7 or newer
+- Administrator privileges (recommended)
 
 ### Setup
 
@@ -229,6 +237,38 @@ The script includes:
 
 ## 📱 Usage
 
+### Windows Client Setup
+
+**⚠️ Important**: The Windows client is a separate component that requires its own setup. Do NOT run `pip install` on the main project directory.
+
+1. **Navigate to the Windows client directory**:
+   ```bash
+   cd windows-client
+   ```
+
+2. **Install Windows client dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Configure the client**:
+   ```bash
+   copy env.example .env
+   # Edit .env with your database settings
+   ```
+
+4. **Test the connection** (recommended):
+   ```bash
+   python test_connection.py
+   ```
+
+5. **Run the client as Administrator**:
+   ```bash
+   python clipboard_capture.py
+   ```
+
+For detailed Windows client setup instructions, see `windows-client/README.md`.
+
 ### Web Interface
 
 The web application provides a complete interface for managing your question-answer pairs:
@@ -271,8 +311,15 @@ GET /health
 
 ### Manual Testing
 
-You can test the system by creating questions via the API:
+You can test the system in multiple ways:
 
+**Via Windows Client (Recommended):**
+1. Set up and run the Windows client (see `windows-client/README.md`)
+2. Copy any text to your clipboard (CTRL+C works normally)
+3. Press **CTRL+ALT+C** to capture and process it
+4. Use **CTRL+SHIFT+Q** to stop the service when done
+
+**Via API:**
 ```bash
 # Create a test question
 curl -X POST http://localhost:3000/api/records \
@@ -373,18 +420,28 @@ All services are connected via an internal Docker network and automatically rest
 
 ### Upcoming Features
 
-1. **Windows Client**: CTRL+ALT+C clipboard capture
-2. **SSL Access**: Nginx Proxy Manager configuration
-3. **Advanced Testing**: Comprehensive test suite
-4. **Enhanced Logging**: Centralized logging with correlation IDs
-5. **Performance Metrics**: Monitoring and analytics
+1. **SSL Access**: Nginx Proxy Manager configuration
+2. **Advanced Testing**: Comprehensive test suite
+3. **Enhanced Logging**: Centralized logging with correlation IDs
+4. **Performance Metrics**: Monitoring and analytics
+5. **Enhanced Windows Client**: GUI interface and system tray support
+
+### Latest Updates
+
+**Windows Client v2.0 (Just Released):**
+- ✅ **CTRL+ALT+C clipboard capture** - Fully implemented
+- ✅ **Auto-restart functionality** - Service automatically restarts if it dies
+- ✅ **Service Guardian** - Monitors service health and handles recovery
+- ✅ **Health monitoring** - Automatic hotkey re-registration
+- ✅ **Robust error handling** - Database reconnection with exponential backoff
+- ✅ **Comprehensive logging** - File and console logging with statistics
 
 ### Known Limitations
 
-- Windows client not yet implemented
 - External SSL access requires manual Nginx setup
 - No user authentication (single-user system)
 - Limited audio format support (MP3 only)
+- Windows client requires manual terminal operation (GUI planned for future)
 
 ## 🤝 Contributing
 
@@ -398,9 +455,36 @@ All services are connected via an internal Docker network and automatically rest
 
 MIT License - see LICENSE file for details
 
+## 🔧 Recent Fixes & Improvements
+
+### Audio Error Resolution (Latest Update)
+- **Fixed**: Frequent audio loading errors that appeared in browser console
+- **Improved**: Better error handling with automatic retry mechanism
+- **Enhanced**: Shows "Audio is being generated" message while TTS processing
+- **Added**: Graceful handling of missing or corrupted audio files
+
+### CSS Loading Issue Resolution
+- **Fixed**: Content Security Policy blocking Google Fonts
+- **Updated**: CSP configuration to allow fonts.googleapis.com and fonts.gstatic.com
+- **Result**: Google Fonts now load properly without CSP violations
+
+### Audio Player Improvements
+- **Enhanced**: Better feedback when audio files are being generated
+- **Added**: Automatic file existence checking before loading
+- **Improved**: Less noisy error logging for transient audio issues
+- **Fixed**: Proper audio player restoration after TTS completion
+
 ## 🆘 Troubleshooting
 
 ### Common Issues
+
+**"Getting requirements to build wheel did not run successfully" error:**
+This happens when you try to run `pip install` on the main project directory. The main project is a Docker-based system, not a Python package.
+
+**Solution:**
+1. Navigate to the Windows client directory: `cd windows-client`
+2. Install only the Windows client dependencies: `pip install -r requirements.txt`
+3. Follow the Windows client setup instructions in `windows-client/README.md`
 
 **Services won't start:**
 ```bash
@@ -423,7 +507,9 @@ docker-compose up -d
 ```
 
 **Audio not playing:**
-- Check browser audio permissions
+- The system now automatically handles missing audio files during generation
+- Shows "Audio is being generated" message while TTS processes
+- Check browser audio permissions if needed
 - Verify MP3 files in `./public/mp3/` directory
 - Check TTS service logs: `docker-compose logs tts-service`
 
@@ -431,5 +517,9 @@ docker-compose up -d
 - Verify GEMINI_API_KEY is set correctly
 - Check AI service logs: `docker-compose logs ai-service`
 - Ensure internet connectivity for API calls
+
+**CSS/Font Loading Issues:**
+- Fixed: Google Fonts should now load without CSP violations
+- If issues persist, check browser console for any remaining CSP errors
 
 For more detailed troubleshooting, check the service logs and the `/health` endpoint. 

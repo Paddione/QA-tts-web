@@ -4,12 +4,15 @@ This is the Windows client application for the Clipboard-to-TTS system. It runs 
 
 ## Features
 
-- 🎯 **Global Hotkey**: CTRL+ALT+C to capture clipboard content
+- 🎯 **Global Hotkeys**: CTRL+ALT+C to capture clipboard, CTRL+SHIFT+Q to stop service
 - 🔄 **Auto-Retry**: Automatic database reconnection with exponential backoff
+- 🔁 **Auto-Restart**: Service automatically restarts if it dies or crashes
+- 🛡️ **Service Guardian**: Monitors service health and handles restarts
 - 🌐 **Dual-Path Connection**: LAN IP first, then web domain fallback
-- 📊 **Statistics**: Track captures and success/failure rates
+- 📊 **Statistics**: Track captures, success/failure rates, and restart count
 - 🪟 **Background Service**: Runs invisibly in the background
 - 📝 **Comprehensive Logging**: File and console logging with emojis
+- ⌨️ **Health Monitoring**: Automatic hotkey re-registration if lost
 
 ## Requirements
 
@@ -72,12 +75,16 @@ This is the Windows client application for the Clipboard-to-TTS system. It runs 
 
 1. **Start the service** - you'll see:
    ```
+   🎯 Clipboard-to-TTS Windows Client v2.0 (Auto-Restart)
+   🛡️ Service Guardian started
+   Service will automatically restart if it dies
+   Use CTRL+SHIFT+Q to stop the service completely
    🚀 Starting Clipboard Capture Service...
    ✅ Connected to database via 10.0.0.44:5432
-   ⌨️ Hotkey registered: CTRL+ALT+C
+   ⌨️ Hotkeys registered: CTRL+ALT+C (capture), CTRL+SHIFT+Q (stop)
    ✅ Clipboard Capture Service is running
    Press CTRL+ALT+C to capture clipboard content
-   Press CTRL+C to stop the service
+   Use CTRL+SHIFT+Q to stop the service
    ```
 
 2. **Capture clipboard content**:
@@ -86,9 +93,18 @@ This is the Windows client application for the Clipboard-to-TTS system. It runs 
    - The text will be automatically inserted into the database
    - AI processing will begin automatically
 
-3. **Stop the service**:
-   - Press **CTRL+C** in the terminal
+3. **Automatic restart behavior**:
+   - If the service crashes or dies, it will automatically restart
+   - Restart delay starts at 5 seconds and increases with each failure (up to 60 seconds)
+   - No manual intervention needed - the service keeps running
+   - Statistics track restart count and total runtime
+
+4. **Stop the service**:
+   - Press **CTRL+SHIFT+Q** (works from anywhere, even when terminal is not focused)
    - Or close the terminal window
+   - The service guardian will handle graceful shutdown
+   
+   **Note**: CTRL+C will NOT stop the service (since that's used for copying on Windows)
 
 ## Connection Logic
 
@@ -112,9 +128,16 @@ The client uses a dual-path connection strategy:
 - The client now automatically handles Windows console encoding issues
 - No manual configuration needed - works with both UTF-8 and legacy encodings
 
-**Hotkey not working globally:**
+**Hotkeys not working globally:**
 - Run as Administrator
-- Check if another application is using the same hotkey
+- Check if another application is using CTRL+ALT+C or CTRL+SHIFT+Q
+- The service will automatically attempt to re-register hotkeys if they become unregistered
+- Look for hotkey re-registration messages in the logs
+
+**Service won't stop:**
+- Use **CTRL+SHIFT+Q** instead of CTRL+C (CTRL+C is disabled to avoid conflicts with copying)
+- Or close the terminal window
+- Check that the hotkey isn't being blocked by another application
 
 **Database connection failed:**
 - Verify your `.env` file configuration (copy from `env.example`)
@@ -143,19 +166,32 @@ findstr "ERROR" clipboard_capture.log
 ## Service Statistics
 
 The client tracks and displays:
-- Runtime duration
+- Total runtime duration
+- Restart count (how many times the service auto-restarted)
 - Total clipboard captures
 - Successful database inserts
 - Failed insert attempts
 
 Example output on shutdown:
 ```
-📊 Service Statistics:
-  Runtime: 1847.3 seconds
-  Captures: 15
+📊 Final Service Statistics:
+  Total runtime: 1847.3 seconds
+  Restart count: 3
+  Total captures: 15
   Successful inserts: 14
   Failed inserts: 1
 ```
+
+## Auto-Restart Features
+
+The new v2.0 client includes robust auto-restart capabilities:
+
+- **Service Guardian**: Monitors the main service and restarts it if it dies
+- **Exponential Backoff**: Restart delay increases from 5 seconds to max 60 seconds
+- **Health Monitoring**: Automatically re-registers hotkeys if they become unregistered
+- **Error Recovery**: Handles database connection failures, hotkey registration issues, and unexpected crashes
+- **Graceful Shutdown**: Only stops completely when you press CTRL+C or close the terminal
+- **Persistent Statistics**: Restart count and cumulative statistics are maintained across restarts
 
 ## Development
 
